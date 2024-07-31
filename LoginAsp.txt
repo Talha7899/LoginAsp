@@ -1,0 +1,77 @@
+public IActionResult Login()
+{
+    return View();
+}
+
+[HttpPost]
+[ValidateAntiForgeryToken]
+public IActionResult Login(User user)
+{
+    bool IsAuthenticated = false;
+    string controller = "";
+    ClaimsIdentity identity = null;
+
+    var checkUser = _db.Users.FirstOrDefault(u1 => u1.Email == user.Email);
+    if(checkUser != null)
+    {
+        var hasher = new PasswordHasher<string>();
+        var verifyPass = hasher.VerifyHashedPassword(user.Email, checkUser.Password, user.Password);
+
+        if (verifyPass== PasswordVerificationResult.Success && checkUser.RoleId == 1)
+        {
+            identity = new ClaimsIdentity(new[]
+            {
+            new Claim(ClaimTypes.Name ,checkUser.Username),
+            new Claim(ClaimTypes.Role ,"Admin"),
+        }
+           , CookieAuthenticationDefaults.AuthenticationScheme);
+
+            HttpContext.Session.SetString("email",checkUser.Email);
+            HttpContext.Session.SetString("username",checkUser.Username);
+
+            IsAuthenticated = true;
+            controller = "Admin";
+        }
+        else if (verifyPass == PasswordVerificationResult.Success && checkUser.RoleId == 2)
+        {
+            IsAuthenticated = true;
+            identity = new ClaimsIdentity(new[]
+           {
+            new Claim(ClaimTypes.Name ,checkUser.Username),
+            new Claim(ClaimTypes.Role ,"User"),
+        }
+           , CookieAuthenticationDefaults.AuthenticationScheme);
+            controller = "Home";
+        }
+        else
+        {
+            IsAuthenticated = false;
+
+        }
+        if (IsAuthenticated)
+        {
+            var principal = new ClaimsPrincipal(identity);
+
+            var login = HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+
+            return RedirectToAction("Index", controller);
+        }
+        
+        else
+        {
+            ViewBag.msg = "Invalid Credentials";
+            return View();
+        }
+    }
+    else
+    {
+        ViewBag.msg = "User not found";
+        return View();
+    }
+
+}
+public IActionResult Logout()
+{
+    var login = HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return RedirectToAction("Login");
+}
